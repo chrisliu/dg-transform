@@ -5,7 +5,7 @@
 
 namespace dragongem {
 
-class InstrumentTracePass : public llvm::FunctionPass {
+class InstrumentPass : public llvm::FunctionPass {
 public:
   static char ID;
 
@@ -13,12 +13,12 @@ public:
   bool runOnFunction(llvm::Function &F) override;
 };
 
-bool InstrumentTracePass::doInitialization(llvm::Module &M) { return true; }
+bool InstrumentPass::doInitialization(llvm::Module &M) { return true; }
 
 bool runOnFunction(llvm::Function &F) { return true; }
 
-char InstrumentTracePass::ID = 0;
-static llvm::RegisterPass<InstrumentTracePass> X("dg-instrument-trace-pass",
+char InstrumentPass::ID = 0;
+static llvm::RegisterPass<InstrumentPass> X("dg-instrument-trace-pass",
                                        "Instrumented trace pass", false, false);
 
 } // namespace dragongem

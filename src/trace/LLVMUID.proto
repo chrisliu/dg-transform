@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package dragongem.trace;
+
+message CanonicalBB {
+  string function_name = 1;
+  string basic_block_name = 2;
+  uint64 id = 3;
+  uint64 inst_start_id = 4;
+};

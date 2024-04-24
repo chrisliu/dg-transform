@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package dragongem.trace;
+
+message TraceEvent {
+  message DynamicInst {
+    message Memory { uint64 address = 1; }
+
+    uint64 inst_id = 1;
+    oneof inst_oneof {
+      Memory memory = 3;
+    }
+  }
+  
+  message BBEnter {
+    uint64 bb_id = 1;
+  }
+
+  oneof event_oneof {
+    DynamicInst inst = 1;
+    BBEnter bb = 2;
+  }
+}
