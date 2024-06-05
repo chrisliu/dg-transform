@@ -10,6 +10,7 @@
 #include <functional>
 #include <google/protobuf/util/json_util.h>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -20,6 +21,7 @@ namespace trace {
 const std::string ENV_BB_INTERVAL_SIZE = "DG_BB_INTERVAL_SIZE";
 const std::string ENV_BB_INTERVAL_PATH = "DG_BB_INTERVAL_PATH";
 const std::string ENV_TRACE_PATH = "DG_TRACE_PATH";
+const std::string ENV_INST_MAX = "DG_INST_MAX";
 
 class TraceContext {
 protected:
@@ -43,6 +45,7 @@ protected:
   const std::optional<std::filesystem::path> BBIntervalPath_;
   const std::optional<std::filesystem::path> TracePath_;
   std::optional<std::ofstream> TraceOFS_;
+  const std::uint64_t InstMax_;
 
   std::unordered_map<BBId, std::uint64_t> BBVec_;
   std::uint64_t InstCount_;
@@ -61,16 +64,16 @@ protected:
   static std::optional<std::filesystem::path> getTracePath();
   static std::optional<std::ofstream>
   getTraceOFS(const std::optional<std::filesystem::path> &TracePath);
+  static std::uint64_t getInstMax();
 };
 
 TraceContext *TraceContext::Singleton_ = nullptr;
 
 TraceContext::TraceContext()
-    : // InstInterval_(std::stoull(std::getenv(ENV_BB_INTERVAL_SIZE.c_str()))),
-      // BBIntervalPath_(std::getenv(ENV_BB_INTERVAL_PATH.c_str())), BBVec_(),
-      Mode_(getMode()), InstInterval_(getInstInterval()),
+    : Mode_(getMode()), InstInterval_(getInstInterval()),
       BBIntervalPath_(getBBIntervalPath()), TracePath_(getTracePath()),
-      TraceOFS_(getTraceOFS(TracePath_)), InstCount_{0} {}
+      TraceOFS_(getTraceOFS(TracePath_)), InstMax_(getInstMax()),
+      InstCount_{0} {}
 
 TraceContext *TraceContext::getInstance() {
   if (Singleton_ == nullptr) {
@@ -81,6 +84,10 @@ TraceContext *TraceContext::getInstance() {
 
 void TraceContext::incDynamicInstCount() {
   InstCount_++;
+  if (InstCount_ == InstMax_) {
+    std::exit(EXIT_SUCCESS);
+  }
+
   switch (Mode_) {
   case SimPoint:
     if (InstCount_ % *InstInterval_ == 0) {
@@ -119,7 +126,6 @@ void TraceContext::recordLoadInst(InstId Id, void *Address) {
   Inst->mutable_memory()->set_address(AddressU64);
   saveTraceEvent(Load);
 }
-
 
 void TraceContext::recordStoreInst(InstId Id, void *Address) {
   uint64_t AddressU64 = reinterpret_cast<uint64_t>(Address);
@@ -209,6 +215,15 @@ std::optional<std::ofstream> TraceContext::getTraceOFS(
   return std::nullopt;
 }
 
+std::uint64_t TraceContext::getInstMax() {
+  char *InstMax = std::getenv(ENV_INST_MAX.c_str());
+  if (InstMax) {
+    return std::stoul(InstMax);
+  } else {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+}
+
 } // namespace trace
 } // namespace dragongem
 
@@ -227,4 +242,3 @@ void recordLoadInst(InstId Id, void *Address) {
 void recordStoreInst(InstId Id, void *Address) {
   dragongem::trace::TraceContext::getInstance()->recordStoreInst(Id, Address);
 }
-
