@@ -20,15 +20,39 @@ InstrumentationInterface::InstrumentationInterface(::llvm::Module &M) {
   }
 
   {
+    std::vector<::llvm::Type *> Args;
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
+    RecordFunctionEntryFunc = M.getOrInsertFunction("recordFunctionEntry", FTy);
+  }
+
+  {
+    std::vector<::llvm::Type *> Args;
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
+    RecordReturnInstFunc = M.getOrInsertFunction("recordReturnInst", FTy);
+  }
+
+  {
     std::vector<::llvm::Type *> Args = {I64Ty};
     ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
     RecordBasicBlockFunc = M.getOrInsertFunction("recordBasicBlock", FTy);
   }
 
   {
+    std::vector<::llvm::Type *> Args = {I64Ty};
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
+    RecordLandingPadFunc = M.getOrInsertFunction("recordLandingPad", FTy);
+  }
+
+  {
     std::vector<::llvm::Type *> Args = {I64Ty, PtrTy};
     ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
     RecordLoadInstFunc = M.getOrInsertFunction("recordLoadInst", FTy);
+  }
+
+  {
+    std::vector<::llvm::Type *> Args = {I64Ty, PtrTy};
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
+    RecordStoreInstFunc = M.getOrInsertFunction("recordStoreInst", FTy);
   }
 
   {

@@ -1,4 +1,5 @@
 #include "dragongem/llvm/CanonicalId.h"
+#include "dragongem/llvm/ExecutableBasicBlock.h"
 #include "stream.hpp"
 #include "trace/LLVMUID.pb.h"
 #include "llvm/IR/BasicBlock.h"
@@ -131,6 +132,7 @@ void CanonicalId::serialize(std::filesystem::path UIDFile) const {
         CBB.set_basic_block_name(getBBName(Meta.BB));
         CBB.set_id(Meta.Id);
         CBB.set_inst_start_id(Meta.InstStartId);
+        CBB.set_bb_size(getExecutableBasicBlock(*Meta.BB).size());
         return CBB;
       };
 

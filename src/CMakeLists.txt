@@ -25,14 +25,29 @@ install(TARGETS dragongemInstrumentationPasses dragongemLLVM)
 
 # Note: Insrumentation tools can only be built after the trace library has been
 # built.
-add_library(dragongemInstrumentationTools SHARED llvm/trace/Instrumentation.cpp)
-set_target_properties(dragongemInstrumentationTools
-                      PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(dragongemInstrumentationTools dragongemTrace)
+add_library(dragongemInstrumentationTools_shared SHARED
+            llvm/trace/Instrumentation.cpp)
+set_target_properties(
+  dragongemInstrumentationTools_shared
+  PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME
+                                          dragongemInstrumentationTools)
+target_link_libraries(dragongemInstrumentationTools_shared dragongemTrace)
 target_include_directories(
-  dragongemInstrumentationTools
+  dragongemInstrumentationTools_shared
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
-install(TARGETS dragongemInstrumentationTools)
+install(TARGETS dragongemInstrumentationTools_shared)
+
+add_library(dragongemInstrumentationTools_static STATIC
+            llvm/trace/Instrumentation.cpp)
+set_target_properties(
+  dragongemInstrumentationTools_static
+  PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME
+                                          dragongemInstrumentationTools)
+target_link_libraries(dragongemInstrumentationTools_static dragongemTrace_static)
+target_include_directories(
+  dragongemInstrumentationTools_static
+  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
+install(TARGETS dragongemInstrumentationTools_static)
 
 install(TARGETS dragongem)
 install(

@@ -9,7 +9,12 @@ using BBId = std::uint64_t;
 extern "C" {
 void incDynamicInstCount();
 
-void recordBasicBlock(BBId BBId);
+void recordFunctionEntry();
+void recordReturnInst();
+
+void recordBasicBlock(BBId Id);
+void recordLandingPad(BBId FunctionId);
+
 void recordLoadInst(InstId Id, void *Address);
 void recordStoreInst(InstId Id, void *Address);
 }

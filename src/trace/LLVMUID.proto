@@ -7,4 +7,5 @@ message CanonicalBB {
   string basic_block_name = 2;
   uint64 id = 3;
   uint64 inst_start_id = 4;
+  uint64 bb_size = 5;
 };

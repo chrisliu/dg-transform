@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package dragongem.stats;
+
+message FunctionFrame {
+  uint64 id = 1;
+  string function = 2;
+  uint64 cycles = 3;
+  optional uint64 caller_id = 4;
+}

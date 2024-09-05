@@ -36,7 +36,7 @@ InstrumentSimpointPass::run(::llvm::Module &M,
 
   for (::llvm::Function &F : M) {
     for (::llvm::BasicBlock &BB : F) {
-      LLVM_DEBUG(::llvm::dbgs() << F.getName() << '\t');
+      LLVM_DEBUG(::llvm::dbgs() << CID.bbId(BB) << " " << F.getName() << "::");
       LLVM_DEBUG(BB.printAsOperand(::llvm::dbgs(), false);
                  ::llvm::dbgs() << "\n";);
       instrumentBasicBlock(BB, II, CID);

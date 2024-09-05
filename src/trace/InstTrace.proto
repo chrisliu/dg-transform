@@ -16,8 +16,22 @@ message TraceEvent {
     uint64 bb_id = 1;
   }
 
+  message MissedInstCount {
+    uint64 num_insts = 1;
+  }
+
+  message CallStack {
+    message CallFrame {
+      uint64 bb_id = 1;
+      uint64 bb_exec_count = 2; // Number of retired instructions.
+    }
+    repeated CallFrame frames = 1; // From outer -> inner.
+  }
+
   oneof event_oneof {
     DynamicInst inst = 1;
     BBEnter bb = 2;
+    MissedInstCount missed = 3;
+    CallStack call_stack = 4;
   }
 }

@@ -1,5 +1,6 @@
 #include "InstrumentationInterface.h"
 #include "dragongem/llvm/CanonicalId.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 
@@ -23,6 +24,9 @@ protected:
   void instrumentInstruction(::llvm::Instruction &I,
                              const InstrumentationInterface &II,
                              const CanonicalId &CID);
+  void instrumentLandingPad(::llvm::LandingPadInst &I,
+                            const InstrumentationInterface &II,
+                            const CanonicalId &CID);
 };
 
 } // namespace trace

@@ -13,7 +13,13 @@ struct InstrumentationInterface {
 
   ::llvm::IntegerType *I64Ty;
   ::llvm::FunctionCallee IncDynamicInstCountFunc;
+
+  ::llvm::FunctionCallee RecordFunctionEntryFunc;
+  ::llvm::FunctionCallee RecordReturnInstFunc;
+
   ::llvm::FunctionCallee RecordBasicBlockFunc;
+  ::llvm::FunctionCallee RecordLandingPadFunc;
+
   ::llvm::FunctionCallee RecordLoadInstFunc;
   ::llvm::FunctionCallee RecordStoreInstFunc;
 };

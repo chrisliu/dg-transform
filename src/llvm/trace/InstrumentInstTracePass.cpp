@@ -14,6 +14,9 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <vector>
 
@@ -44,6 +47,12 @@ InstrumentInstTracePass::run(::llvm::Module &M,
         }
         instrumentInstruction(*I, II, CID);
       }
+
+      // Do this afterwards since theer's bug with getExecutableBasicBlock.
+      // ::llvm::Instruction ptrs are invalidated after insertion.
+      if (BB.isLandingPad()) {
+        instrumentLandingPad(*BB.getLandingPadInst(), II, CID);
+      }
     }
   }
 
@@ -54,11 +63,19 @@ void InstrumentInstTracePass::instrumentBBEnter(
     ::llvm::Instruction &I, const InstrumentationInterface &II,
     const CanonicalId &CID) {
 
-  BBId Id = CID.bbId(I.getParent());
   ::llvm::IRBuilder<> Builder(&I);
-  std::vector<::llvm::Value *> Args = {
-      ::llvm::ConstantInt::get(II.I64Ty, Id, true)};
-  Builder.CreateCall(II.RecordBasicBlockFunc, Args);
+
+  {
+    BBId Id = CID.bbId(I.getParent());
+    std::vector<::llvm::Value *> Args = {
+        ::llvm::ConstantInt::get(II.I64Ty, Id, true)};
+    Builder.CreateCall(II.RecordBasicBlockFunc, Args);
+  }
+
+  if (I.getParent()->isEntryBlock()) {
+    std::vector<::llvm::Value *> Args;
+    Builder.CreateCall(II.RecordFunctionEntryFunc, Args);
+  }
 }
 
 void InstrumentInstTracePass::instrumentInstruction(
@@ -71,24 +88,51 @@ void InstrumentInstTracePass::instrumentInstruction(
 
   // Handle any instruction class-specific instrumentation.
   switch (I.getOpcode()) {
+
   case ::llvm::Instruction::Load: {
-    auto *Load = ::llvm::dyn_cast<::llvm::LoadInst>(&I);
+    auto *Load = ::llvm::cast<::llvm::LoadInst>(&I);
     ::llvm::Value *Addr = Load->getOperand(0);
     std::vector<::llvm::Value *> Args = {Id, Addr};
     Builder.CreateCall(II.RecordLoadInstFunc, Args);
     break;
   }
+
   case ::llvm::Instruction::Store: {
-    auto *Store = ::llvm::dyn_cast<::llvm::StoreInst>(&I);
+    auto *Store = ::llvm::cast<::llvm::StoreInst>(&I);
     ::llvm::Value *Addr = Store->getOperand(1);
     std::vector<::llvm::Value *> Args = {Id, Addr};
     Builder.CreateCall(II.RecordStoreInstFunc, Args);
     break;
   }
+
+  case ::llvm::Instruction::Ret:
+    Builder.CreateCall(II.RecordReturnInstFunc);
+    break;
+
+  case ::llvm::Instruction::CatchPad:
+  case ::llvm::Instruction::CleanupPad:
+    ::llvm::errs() << "Unsupported instruction: " << I << '\n';
+    assert(false && "Unsupported instruction");
   }
 
   // Increment dynamic instruction count.
   Builder.CreateCall(II.IncDynamicInstCountFunc);
+}
+
+void InstrumentInstTracePass::instrumentLandingPad(
+    ::llvm::LandingPadInst &I, const InstrumentationInterface &II,
+    const CanonicalId &CID) {
+  // Insert after landing pad instruction to maintain LLVM IR semantics.
+  ::llvm::Instruction *NextInst = I.getNextNode();
+  assert(NextInst);
+  ::llvm::IRBuilder<> Builder(NextInst);
+
+  const ::llvm::Function *F = I.getFunction();
+  const BBId FId = CID.bbId(F->getEntryBlock());
+  std::vector<::llvm::Value *> Args = {
+      ::llvm::ConstantInt::get(II.I64Ty, FId, true),
+  };
+  Builder.CreateCall(II.RecordLandingPadFunc, Args);
 }
 
 } // namespace trace
