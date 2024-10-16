@@ -1,4 +1,5 @@
 #include "InstrumentationInterface.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 
@@ -11,7 +12,12 @@ InstrumentationInterface::InstrumentationInterface(::llvm::Module &M) {
 
   ::llvm::Type *VoidTy = ::llvm::Type::getVoidTy(Ctx);
   ::llvm::Type *PtrTy = ::llvm::PointerType::get(Ctx, 0); // void *
+                                                          //
   I64Ty = ::llvm::Type::getInt64Ty(Ctx);
+
+  BoolTy = ::llvm::Type::getInt8Ty(Ctx);
+  TrueVal = ::llvm::ConstantInt::get(BoolTy, 1);
+  FalseVal = ::llvm::ConstantInt::get(BoolTy, 0);
 
   {
     std::vector<::llvm::Type *> Args;
@@ -20,27 +26,22 @@ InstrumentationInterface::InstrumentationInterface(::llvm::Module &M) {
   }
 
   {
-    std::vector<::llvm::Type *> Args;
-    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
-    RecordFunctionEntryFunc = M.getOrInsertFunction("recordFunctionEntry", FTy);
-  }
-
-  {
-    std::vector<::llvm::Type *> Args;
-    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
-    RecordReturnInstFunc = M.getOrInsertFunction("recordReturnInst", FTy);
-  }
-
-  {
     std::vector<::llvm::Type *> Args = {I64Ty};
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(I64Ty, Args, false);
+    GetCallSiteFunc = M.getOrInsertFunction("getCallSite", FTy);
+  }
+
+  {
+    std::vector<::llvm::Type *> Args = {I64Ty, I64Ty};
+    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
+    RecordReturnFromCallFunc =
+        M.getOrInsertFunction("recordReturnFromCall", FTy);
+  }
+
+  {
+    std::vector<::llvm::Type *> Args = {I64Ty, BoolTy};
     ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
     RecordBasicBlockFunc = M.getOrInsertFunction("recordBasicBlock", FTy);
-  }
-
-  {
-    std::vector<::llvm::Type *> Args = {I64Ty};
-    ::llvm::FunctionType *FTy = ::llvm::FunctionType::get(VoidTy, Args, false);
-    RecordLandingPadFunc = M.getOrInsertFunction("recordLandingPad", FTy);
   }
 
   {
