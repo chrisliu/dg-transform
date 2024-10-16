@@ -66,9 +66,7 @@ void InstrumentSimpointPass::instrumentBasicBlock(
     // Add basic block vector instrumentation.
     if (InstIt == BB.getFirstNonPHIOrDbgOrAlloca()) {
       std::vector<::llvm::Value *> Args = {
-          ::llvm::ConstantInt::get(II.I64Ty, CID.bbId(BB), false),
-          BB.isEntryBlock() ? II.TrueVal : II.FalseVal,
-      };
+          ::llvm::ConstantInt::get(II.I64Ty, CID.bbId(BB), true)};
       Builder.CreateCall(II.RecordBasicBlockFunc, Args);
     }
 

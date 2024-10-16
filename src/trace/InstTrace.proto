@@ -2,21 +2,13 @@ syntax = "proto3";
 
 package dragongem.trace;
 
-message BBFrame {
-  uint64 bb_id = 1;
-  uint64 num_retired = 2;
-  optional bool is_call = 3;
-}
-
 message TraceEvent {
   message DynamicInst {
     message Memory { uint64 address = 1; }
-    message Call {}
 
     uint64 inst_id = 1;
     oneof inst_oneof {
-      Memory memory = 2;
-      Call call = 3;
+      Memory memory = 3;
     }
   }
   
@@ -24,21 +16,22 @@ message TraceEvent {
     uint64 bb_id = 1;
   }
 
-  message CallStack {
-    repeated BBFrame frames = 1; // From outer -> inner.
+  message MissedInstCount {
+    uint64 num_insts = 1;
   }
 
-  message StackAdjustment {
-    // Keeps track of the instruction that resulted in a stack adjustment.
-    BBFrame top_frame = 1;
-    uint64 num_popped_frames = 2;
-    optional BBFrame new_frame = 3;
+  message CallStack {
+    message CallFrame {
+      uint64 bb_id = 1;
+      uint64 bb_exec_count = 2; // Number of retired instructions.
+    }
+    repeated CallFrame frames = 1; // From outer -> inner.
   }
 
   oneof event_oneof {
     DynamicInst inst = 1;
     BBEnter bb = 2;
-    CallStack call_stack = 3;
-    StackAdjustment stack_adjustment = 4;
+    MissedInstCount missed = 3;
+    CallStack call_stack = 4;
   }
 }

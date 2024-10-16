@@ -1,15 +1,14 @@
 #ifndef DRAGONGEM_LLVM_CANONICAL_ID_H
 #define DRAGONGEM_LLVM_CANONICAL_ID_H
 
-#include <cstdint>
-#include <filesystem>
-#include <unordered_map>
-#include <vector>
-
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include <cstdint>
+#include <filesystem>
+#include <unordered_map>
+#include <vector>
 
 namespace dragongem {
 namespace llvm {

@@ -1,13 +1,10 @@
 #include "Instrumentation.h"
 
 #include <cassert>
-#include <chrono>
-#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -18,25 +15,17 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "stream.hpp"
 #include "trace/BBInterval.pb.h"
 #include "trace/InstTrace.pb.h"
 
-#define ENABLE_ASSERT
 // #define ENABLE_DEBUG
 
-#ifdef ENABLE_ASSERT
-#define ASSERT(expr) assert(expr)
-#else
-#define ASSERT(expr)
-#endif
-
-namespace {
-
-using PBBFrame = dragongem::trace::BBFrame;
-using PTraceEvent = dragongem::trace::TraceEvent;
+namespace dragongem {
+namespace trace {
 
 const std::string ENV_MODE = "DG_MODE"; // { SimPoint, InstTrace }
 
@@ -51,8 +40,6 @@ const std::string ENV_INST_MAX = "DG_INST_MAX";
 const std::string ENV_SIMPOINT_PATH = "DG_SIMPOINT_PATH";
 
 using DynInstId = std::uint64_t;
-const InstId InvalidInst = 0; // dragongem::llvm::CanonicalId::InvalidInstId;
-const BBId InvalidBB = 0;     // dragongem::llvm::CanonicalId::InvalidBBId;
 
 struct InstInterval {
   const DynInstId Start;
@@ -86,8 +73,8 @@ struct GetEnv {
 
 // TraceContext
 // For each instruction, the convention is:
-//   record...() [any order]
-//   incDynamicInstCount() [always last]
+//   record...()
+//   incDynamicInstCount()
 //   execute actual instruction
 class TraceContext {
 public:
@@ -95,14 +82,14 @@ public:
 
   virtual void incDynamicInstCount() { ++CurInstId; }
 
-  virtual CallId getCallSite(const InstId Id) { return InvalidCall; }
-  virtual void recordReturnFromCall(const CallId Id,
-                                    const InstId NumRetiredInBB) {}
+  virtual void recordFunctionEntry() {}
+  virtual void recordReturnInst() {}
 
-  virtual void recordBasicBlock(const BBId Id, const bool IsFuncEntry) {}
+  virtual void recordBasicBlock(BBId Id) {}
+  virtual void recordLandingPad(BBId FunctionId) {}
 
-  virtual void recordLoadInst(const InstId Id, void *const Address) {}
-  virtual void recordStoreInst(const InstId Id, void *const Address) {}
+  virtual void recordLoadInst(InstId Id, void *Address) {}
+  virtual void recordStoreInst(InstId Id, void *Address) {}
 
 protected:
   DynInstId curInstId() const { return CurInstId; }
@@ -121,7 +108,7 @@ public:
   SimPointContext();
 
   void incDynamicInstCount() override;
-  void recordBasicBlock(const BBId Id, const bool IsFuncEntry) override;
+  void recordBasicBlock(BBId Id) override;
 
 protected:
   const DynInstId IntervalSize;
@@ -150,9 +137,6 @@ protected:
     bool inInterval(DynInstId Id) const { return It->inInterval(Id); }
 
     std::size_t SerializedCount = 0;
-
-    std::chrono::steady_clock::time_point TimeFF;
-    std::chrono::steady_clock::time_point TimeStart;
 
   protected:
     const std::vector<InstInterval> &TraceIntervals;
@@ -184,164 +168,71 @@ protected:
   };
 
   struct CallFrame {
-    friend std::ostream &operator<<(std::ostream &OS, const CallFrame &F) {
-      OS << "Frame " << F.CurBB << "::" << F.NumRetired;
-      if (F.PendingCall) {
-        OS << " (@" << F.PendingCall.Handle << ", " << F.PendingCall.Id
-           << ", isReal: " << F.PendingCall.IsReal << ")";
-      }
-      return OS;
+    const BBId FrameId;
+    BBId CurBB;
+    DynInstId BBExecCount = 0;
+
+    CallFrame(const BBId CurBB_) : FrameId(CurBB_), CurBB(CurBB_) {}
+    void enterBB(BBId Id) {
+      CurBB = Id;
+      BBExecCount = 0;
     }
 
-    BBId CurBB;
-    InstId NumRetired = 0;
-
-    struct {
-      explicit operator bool() const {
-        ASSERT((Id != InvalidInst) == (Handle != InvalidCall));
-        return Id != InvalidInst && Handle != InvalidCall;
-      }
-      void reset() {
-        Id = InvalidInst;
-        Handle = InvalidCall;
-        IsReal = false;
-      }
-
-      InstId Id = InvalidInst;
-      CallId Handle = InvalidCall;
-      bool IsReal = false; // Is a real call instruction.
-    } PendingCall;
-
-    CallFrame(const BBId Id) : CurBB(Id) {}
+    friend std::ostream &operator<<(std::ostream &OS, const CallFrame &F) {
+      OS << "CallFrame " << F.FrameId << " " << F.CurBB << ":" << F.BBExecCount;
+      return OS;
+    }
   };
 
 public:
   InstTraceContext();
 
   void incDynamicInstCount() override;
-  CallId getCallSite(const InstId Id) override;
-  void recordReturnFromCall(const CallId Id,
-                            const InstId NumRetiredInBB) override;
-  void recordBasicBlock(const BBId Id, const bool IsFuncEntry) override;
-  void recordLoadInst(const InstId Id, void *const Address) override;
-  void recordStoreInst(const InstId Id, void *const Address) override;
+  void recordFunctionEntry() override;
+  void recordReturnInst() override;
+  void recordBasicBlock(BBId Id) override;
+  void recordLandingPad(BBId FunctionId) override;
+  void recordLoadInst(InstId Id, void *Address) override;
+  void recordStoreInst(InstId Id, void *Address) override;
 
 protected:
   const DynInstId SerializeTESize = 1000; // Serialize every X TEs.
-  // const DynInstId SerializeTESize = 1; // Serialize every X TEs.
-  CallId CurCallHandle = InvalidCall + 1;
-  std::chrono::steady_clock::time_point TimeAllStart;
 
   const std::vector<InstInterval> TraceIntervals;
   IntervalIterator CurInterval;
 
   std::deque<CallFrame> CallStack;
-
+  /*bool WillCall = false;*/
+  /*bool ExpectNewCallFrame = true;*/
   struct {
+    std::optional<BBId> Id = std::nullopt;
+    bool IsFunctionEntry = false;
+    std::optional<BBId> LPFuncId = std::nullopt; // Landing pad function id.
+                                                 //
+    bool isValid() const {
+      return (IsFunctionEntry || isLandingPad())
+                 ? (IsFunctionEntry ^ isLandingPad()) && Id.has_value()
+                 : true;
+    }
+
+    bool isLandingPad() const { return LPFuncId.has_value(); }
+
     void reset() {
-      EnteredBB.reset();
-      Return.reset();
-      Call.reset();
-      Memory.reset();
+      Id = std::nullopt;
+      IsFunctionEntry = false;
+      LPFuncId = std::nullopt;
     }
+  } EnteredBB;
+  /*std::optional<BBId> EnteredBB = std::nullopt;*/
+  bool WillReturn = false;
 
-    std::string debugStr() const {
-      std::stringstream SS;
-      if (Return) {
-        SS << "Return(@" << Return.Handle << "::" << Return.NumRetired << ") ";
-      }
-      if (EnteredBB) {
-        SS << "EnteredBB(" << EnteredBB.Id
-           << ", isFuncEntry: " << EnteredBB.IsFuncEntry << ") ";
-      }
-      if (Call) {
-        SS << "Call(@" << Call.Handle << ", " << Call.Id << ") ";
-      }
-      if (Memory) {
-        SS << "Memory(" << Memory.IsLoad << "|" << Memory.IsStore << ", "
-           << Memory.Id << ", " << Memory.Address << ") ";
-      }
-      return SS.str();
-    }
+  std::vector<TraceEvent> TEs;
 
-    struct {
-      explicit operator bool() const { return Id != InvalidBB; }
-      void reset() {
-        Id = InvalidBB;
-        IsFuncEntry = false;
-      }
-
-      BBId Id = InvalidBB;
-      bool IsFuncEntry = false;
-    } EnteredBB;
-
-    struct {
-      explicit operator bool() const { return Handle != InvalidCall; }
-      void reset() {
-        Handle = InvalidCall;
-        NumRetired = 0;
-      }
-
-      CallId Handle = InvalidCall;
-      InstId NumRetired = 0;
-    } Return;
-
-    struct {
-      explicit operator bool() const {
-        ASSERT((Id != InvalidInst) == (Handle != InvalidCall));
-        return Id != InvalidInst && Handle != InvalidCall;
-      }
-      void reset() {
-        Id = InvalidInst;
-        Handle = InvalidCall;
-      }
-
-      InstId Id = InvalidInst;
-      CallId Handle = InvalidCall;
-    } Call;
-
-    struct {
-      explicit operator bool() const {
-        ASSERT((Id != InvalidInst) == (Address != nullptr));
-        ASSERT(!(IsLoad && IsStore));
-        ASSERT((IsLoad || IsStore) == (Id != InvalidInst));
-        return (IsLoad || IsStore) && Id != InvalidInst && Address != nullptr;
-      }
-      void reset() {
-        IsLoad = false;
-        IsStore = false;
-        Id = InvalidInst;
-        Address = nullptr;
-      }
-
-      bool IsLoad = false;
-      bool IsStore = false;
-      InstId Id = InvalidInst;
-      void *Address = nullptr;
-    } Memory;
-  } CurTick;
-
-  std::vector<dragongem::trace::TraceEvent> TEs;
-
-  void setSerialize(const bool CanSerialize_);
-
-  void serializeCallStack();
-  void serializeStackAdjust(const BBId TopBB, const InstId TopNumRetired,
-                            const std::uint64_t NumPoppedFrames);
-  void serializeStackAdjust(const BBId TopBB, const InstId TopNumRetired,
-                            const std::uint64_t NumPoppedFrames,
-                            const BBId NewBB, const InstId NewNumRetired);
-  void serializeCall(const InstId Id);
-  void serializeBBEnter(const BBId Id);
-  void serializeMemory(const InstId Id, void *const Address);
-
+  void recordCallStack();
   void trySerializeTEs();
   void serializeTEs();
 
   void dumpCallStack() const;
-
-private:
-  bool CanSerialize = false;
 };
 
 // Implementations.
@@ -402,13 +293,14 @@ void SimPointContext::incDynamicInstCount() {
   TraceContext::incDynamicInstCount();
 
   if (curInstId() % IntervalSize == 0) {
-    dragongem::trace::BBInterval BBI;
+    BBInterval BBI;
     BBI.set_inst_start(curInstId() - IntervalSize);
     BBI.set_inst_end(curInstId() - 1);
     BBI.mutable_freq()->insert(BBVec.begin(), BBVec.end());
 
-    std::function<dragongem::trace::BBInterval(uint64_t)> EmitBBI =
-        [&BBI](uint64_t) { return BBI; };
+    std::function<BBInterval(uint64_t)> EmitBBI = [&BBI](uint64_t) {
+      return BBI;
+    };
     stream::write(BBIntervalOFS, 1, EmitBBI);
     BBIntervalOFS.flush();
 
@@ -416,9 +308,7 @@ void SimPointContext::incDynamicInstCount() {
   }
 }
 
-void SimPointContext::recordBasicBlock(BBId Id, const bool IsFuncEntry) {
-  ++BBVec[Id];
-}
+void SimPointContext::recordBasicBlock(BBId Id) { ++BBVec[Id]; }
 
 std::vector<InstInterval> InstTraceContext::getTraceIntervals() {
   std::vector<InstInterval> TraceIntervals;
@@ -513,354 +403,174 @@ InstTraceContext::InstTraceContext()
     : TraceIntervals(getTraceIntervals()),
       CurInterval(TraceIntervals, GetEnv::path(ENV_TRACE_PATH)) {
 
-  std::cout << "Assigned Intervals:" << std::endl;
-  for (auto i = 0; i < TraceIntervals.size(); ++i) {
-    std::cout << "  " << (i + 1) << ". " << TraceIntervals[i] << std::endl;
+  for (const InstInterval &Interval : TraceIntervals) {
+    std::cout << Interval << std::endl;
   }
 
   if (CurInterval.isDone()) {
     std::cout << "No intervals to trace" << std::endl;
     std::exit(EXIT_SUCCESS);
   }
-
-  const auto Now = std::chrono::steady_clock::now();
-  TimeAllStart = Now;
-  CurInterval.TimeFF = Now;
 }
 
 void InstTraceContext::incDynamicInstCount() {
-  const DynInstId CurInstId = curInstId();
+  DynInstId CurInstId = curInstId();
   TraceContext::incDynamicInstCount();
-  const InstId NextInstId = curInstId();
 
-#ifdef ENABLE_DEBUG
-  // 807'119'079
-  // const bool DebugOn = CurInstId >= 807'119'000;
-  const bool DebugOn = true;
-#endif
-
-#ifdef ENABLE_DEBUG
-  if (DebugOn) {
-    std::cout << std::endl;
-    std::cout << "Inst " << CurInstId << " = " << CurTick.debugStr()
-              << std::endl;
+  if (CurInstId == CurInterval.instInterval().Start) {
+    recordCallStack();
   }
-#endif
 
-  const bool IsFirstInInterval = CurInstId == CurInterval.instInterval().Start;
-
+  // Update call stack.
+  assert(EnteredBB.isValid());
+  if (EnteredBB.Id) {
 #ifdef ENABLE_DEBUG
-  const bool WillStackUpdate =
-      CurTick.Return || CurTick.EnteredBB || CurTick.Call;
-  if (DebugOn) {
-    if (WillStackUpdate) {
-      dumpCallStack();
-    }
-  }
-#endif
-
-  // Resolve the effects of any branch/return/exception handling instruction
-  // that executed *BEFORE* this instruction.
-  // 1. Resolve any returns first (either plain return or exception unwinding).
-  // 2. Resolve any basic block entry (either new call, branch,
-  //    normal/landingpad).
-  bool IgnoreBBEnter = false;
-  if (CurTick.Return) {
-    ASSERT(!CallStack.empty());
-
-    CallFrame &CalleeFrame = CallStack.back();
-    if (CalleeFrame.PendingCall.Handle == CurTick.Return.Handle) {
-      // Case: Called function was not traced.
-      ASSERT(!CalleeFrame.PendingCall.IsReal);
-      ASSERT(CurTick.EnteredBB ||
-             CalleeFrame.NumRetired == CurTick.Return.NumRetired);
-
-      CalleeFrame.PendingCall.reset();
+    std::cout << CurInstId << " Entered BB " << *EnteredBB.Id
+              << " (entry: " << EnteredBB.IsFunctionEntry << ", lp: ";
+    if (EnteredBB.isLandingPad()) {
+      std::cout << *EnteredBB.LPFuncId;
     } else {
-      BBId CalleeBB = CalleeFrame.CurBB;
-      InstId CalleeNumRetired = CalleeFrame.NumRetired;
+      std::cout << "none";
+    }
+    std::cout << ")" << std::endl;
+    dumpCallStack();
+#endif
 
-      assert(CurTick.Return.Handle != InvalidCall);
-
-      std::uint64_t NumPopped = 0;
+    if (EnteredBB.isLandingPad()) {
+      assert(!EnteredBB.IsFunctionEntry);
       while (!CallStack.empty() &&
-             CallStack.back().PendingCall.Handle != CurTick.Return.Handle) {
-        ++NumPopped;
+             CallStack.back().FrameId != EnteredBB.LPFuncId) {
         CallStack.pop_back();
       }
-      // Note: CalleeFrame invalid here.
 
-      if (CallStack.empty()) {
-        std::cout << CurInstId << std::endl;
-      }
       assert(!CallStack.empty());
-
-      CallFrame &CurFrame = CallStack.back();
-
-      ASSERT(CurFrame.PendingCall.IsReal);
-      CurFrame.PendingCall.reset();
-
-      CurFrame.NumRetired = CurTick.Return.NumRetired;
-      if (CurTick.EnteredBB) {
-        ASSERT(!CurTick.EnteredBB.IsFuncEntry);
-        IgnoreBBEnter = true;
-        CurFrame.CurBB = CurTick.EnteredBB.Id;
-        serializeStackAdjust(CalleeBB, CalleeNumRetired, NumPopped,
-                             CurFrame.CurBB, CurFrame.NumRetired);
-      } else {
-        serializeStackAdjust(CalleeBB, CalleeNumRetired, NumPopped);
-      }
     }
-  }
 
-  if (!IgnoreBBEnter && CurTick.EnteredBB) {
-    if (CurTick.EnteredBB.IsFuncEntry) {
-      if (!CallStack.empty()) {
-        if (CallStack.back().PendingCall) {
-          CallStack.back().PendingCall.IsReal = true;
-
-          serializeCall(CallStack.back().PendingCall.Id);
-        } else {
-          // Special case: sometimes we're supposed to exit a global variable
-          //               constructor and into the actual main function.
-          //               https://maskray.me/blog/2021-11-07-init-ctors-init-array
-          ASSERT(CallStack.size() == 1);
-          CallFrame &CurFrame = CallStack.back();
-
-          serializeStackAdjust(CurFrame.CurBB, CurFrame.NumRetired, 1);
-
-          CallStack.pop_back();
-        }
-      }
-
-      CallStack.emplace_back(CurTick.EnteredBB.Id);
+    if (EnteredBB.IsFunctionEntry) {
+      CallStack.emplace_back(*EnteredBB.Id);
     } else {
       assert(!CallStack.empty());
-      ASSERT(!CallStack.back().PendingCall);
-
-      CallStack.back().CurBB = CurTick.EnteredBB.Id;
-      CallStack.back().NumRetired = 0;
+      CallStack.back().enterBB(*EnteredBB.Id);
     }
 
-    serializeBBEnter(CurTick.EnteredBB.Id);
-  }
+    EnteredBB.reset();
 
-  // If we entered a new interval, save the call stack *BEFORE* executing this
-  // instruction.
-  if (IsFirstInInterval) {
-    const auto Now = std::chrono::steady_clock::now();
-    CurInterval.TimeStart = Now;
-
-    const auto TotElapsed =
-        std::chrono::duration_cast<std::chrono::seconds>(Now - TimeAllStart);
-    const auto FFElapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        Now - CurInterval.TimeFF);
-
-    std::cout << CurInterval << std::endl;
-    std::cout << "[FF Time]    " << FFElapsed.count() << " s" << std::endl
-              << "[Total Time] " << TotElapsed.count() << " s " << std::endl;
+#ifdef ENABLE_DEBUG
+    std::cout << CurInstId << " Post entered BB" << std::endl;
     dumpCallStack();
-
-    setSerialize(true); // Enable serialization for this interval here.
-    serializeCallStack();
+#endif
   }
 
-  // Update basic block with information.
   assert(!CallStack.empty());
-  CallFrame &CurFrame = CallStack.back();
-  ++CurFrame.NumRetired;
+  ++CallStack.back().BBExecCount;
 
-  if (CurTick.Call) {
-    ASSERT(!CurFrame.PendingCall);
-    CurFrame.PendingCall.Id = CurTick.Call.Id;
-    CurFrame.PendingCall.Handle = CurTick.Call.Handle;
+  // 2. Pop call stack if return is encountered.
+  //    Note: this can occur if a BB only consists of a return statement.
+  if (WillReturn) {
+#ifdef ENABLE_DEBUG
+    assert(!CallStack.empty());
+    std::cout << CurInstId << " Return" << std::endl;
+    dumpCallStack();
+#endif
+
+    /*ExpectNewCallFrame = CallStack.empty();*/
+    CallStack.pop_back();
+    WillReturn = false;
+
+#ifdef ENABLE_DEBUG
+    std::cout << CurInstId << " Post return" << std::endl;
+    dumpCallStack();
+#endif
   }
 
-  if (CurTick.Memory) {
-    serializeMemory(CurTick.Memory.Id, CurTick.Memory.Address);
-  }
-
-  CurTick.reset();
-
-  if (!CurInterval.inInterval(CurInstId)) {
+  // Ignore check if this instruction hasn't met the interval start.
+  if (CurInterval.isWaitingForInterval(CurInstId)) {
     return;
   }
 
-#ifdef ENABLE_DEBUG
-  if (DebugOn) {
-    if (WillStackUpdate) {
-      dumpCallStack();
-    }
-  }
-#endif
-
-  // Check if the next instruction belongs to the current interval.
-  if (!CurInterval.inInterval(NextInstId)) {
+  // Check if the next instruction will be in a new interval.
+  if (!CurInterval.inInterval(curInstId())) {
     if (!TEs.empty()) {
       serializeTEs();
     }
 
-    setSerialize(false);
-
-    const auto Now = std::chrono::steady_clock::now();
-    const auto TraceElapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        Now - CurInterval.TimeStart);
-
     std::cout << "Finished " << CurInterval << std::endl;
     std::cout << " - Serialize count " << CurInterval.SerializedCount
               << std::endl;
-    std::cout << "[Trace Time] " << TraceElapsed.count() << " s" << std::endl;
 
     if (CurInterval.advance()) {
       std::cout << "Finished all intervals" << std::endl;
       std::exit(EXIT_SUCCESS);
-    } else {
-      CurInterval.TimeFF = Now;
     }
   }
 }
 
-CallId InstTraceContext::getCallSite(const InstId Id) {
-  CallId Handle = CurCallHandle;
-  ++CurCallHandle;
-
-  CurTick.Call.Id = Id;
-  CurTick.Call.Handle = Handle;
-
-  return Handle;
+void InstTraceContext::recordFunctionEntry() {
+  EnteredBB.IsFunctionEntry = true;
 }
 
-void InstTraceContext::recordReturnFromCall(const CallId Id,
-                                            const InstId NumRetiredInBB) {
-  if (Id != InvalidCall) {
-    CurTick.Return.Handle = Id;
-    CurTick.Return.NumRetired = NumRetiredInBB;
-  }
-}
+void InstTraceContext::recordReturnInst() { WillReturn = true; }
 
-void InstTraceContext::recordBasicBlock(const BBId Id, const bool IsFuncEntry) {
-  CurTick.EnteredBB.Id = Id;
-  CurTick.EnteredBB.IsFuncEntry = IsFuncEntry;
-}
+void InstTraceContext::recordBasicBlock(BBId Id) {
+  EnteredBB.Id = Id;
 
-void InstTraceContext::recordLoadInst(const InstId Id, void *const Address) {
-  CurTick.Memory.IsLoad = true;
-  CurTick.Memory.Id = Id;
-  CurTick.Memory.Address = Address;
-}
-
-void InstTraceContext::recordStoreInst(const InstId Id, void *const Address) {
-  CurTick.Memory.IsStore = true;
-  CurTick.Memory.Id = Id;
-  CurTick.Memory.Address = Address;
-}
-
-void InstTraceContext::setSerialize(const bool CanSerialize_) {
-  CanSerialize = CanSerialize_;
-}
-
-void InstTraceContext::serializeCallStack() {
-  assert(CanSerialize);
-
-  PTraceEvent TE;
-  PTraceEvent::CallStack *PCallStack = TE.mutable_call_stack();
-  for (const CallFrame &F : CallStack) {
-    PBBFrame *PF = PCallStack->add_frames();
-    PF->set_bb_id(F.CurBB);
-    PF->set_num_retired(F.NumRetired);
-    PF->set_is_call(F.PendingCall && F.PendingCall.IsReal);
-  }
-
-  TEs.push_back(TE);
-  trySerializeTEs();
-}
-
-void InstTraceContext::serializeStackAdjust(
-    const BBId TopBB, const InstId TopNumRetired,
-    const std::uint64_t NumPoppedFrames) {
-  if (!CanSerialize) {
+  if (CurInterval.isWaitingForInterval(curInstId())) {
     return;
   }
 
-  PTraceEvent TE;
-  PTraceEvent::StackAdjustment *StackAdj = TE.mutable_stack_adjustment();
+  TraceEvent BBEnter;
+  BBEnter.mutable_bb()->set_bb_id(Id);
 
-  PBBFrame *Top = StackAdj->mutable_top_frame();
-  Top->set_bb_id(TopBB);
-  Top->set_num_retired(TopNumRetired);
-
-  StackAdj->set_num_popped_frames(NumPoppedFrames);
-
-  TEs.push_back(TE);
+  TEs.push_back(BBEnter);
   trySerializeTEs();
 }
 
-void InstTraceContext::serializeStackAdjust(const BBId TopBB,
-                                            const InstId TopNumRetired,
-                                            const std::uint64_t NumPoppedFrames,
-                                            const BBId NewBB,
-                                            const InstId NewNumRetired) {
-  if (!CanSerialize) {
-    return;
-  }
-
-  PTraceEvent TE;
-  PTraceEvent::StackAdjustment *StackAdj = TE.mutable_stack_adjustment();
-
-  PBBFrame *Top = StackAdj->mutable_top_frame();
-  Top->set_bb_id(TopBB);
-  Top->set_num_retired(TopNumRetired);
-
-  StackAdj->set_num_popped_frames(NumPoppedFrames);
-
-  PBBFrame *New = StackAdj->mutable_new_frame();
-  New->set_bb_id(NewBB);
-  New->set_num_retired(NewNumRetired);
-
-  TEs.push_back(TE);
-  trySerializeTEs();
+void InstTraceContext::recordLandingPad(BBId FunctionId) {
+  EnteredBB.LPFuncId = FunctionId;
 }
 
-void InstTraceContext::serializeCall(const InstId Id) {
-  if (!CanSerialize) {
-    return;
-  }
-
-  PTraceEvent TE;
-  PTraceEvent::DynamicInst *DynInst = TE.mutable_inst();
-  DynInst->set_inst_id(Id);
-  DynInst->mutable_call();
-
-  TEs.push_back(TE);
-  trySerializeTEs();
-}
-
-void InstTraceContext::serializeBBEnter(const BBId Id) {
-  if (!CanSerialize) {
-    return;
-  }
-
-  PTraceEvent TE;
-  PTraceEvent::BBEnter *BBEnter = TE.mutable_bb();
-  BBEnter->set_bb_id(Id);
-
-  TEs.push_back(TE);
-  trySerializeTEs();
-}
-
-void InstTraceContext::serializeMemory(const InstId Id, void *const Address) {
-  if (!CanSerialize) {
+void InstTraceContext::recordLoadInst(InstId Id, void *Address) {
+  if (CurInterval.isWaitingForInterval(curInstId())) {
     return;
   }
 
   std::uint64_t AddressU64 = reinterpret_cast<std::uint64_t>(Address);
 
-  PTraceEvent TE;
-  PTraceEvent::DynamicInst *DynInst = TE.mutable_inst();
-  DynInst->set_inst_id(Id);
-  DynInst->mutable_memory()->set_address(AddressU64);
+  TraceEvent Load;
+  TraceEvent::DynamicInst *Inst = Load.mutable_inst();
+  Inst->set_inst_id(Id);
+  Inst->mutable_memory()->set_address(AddressU64);
 
-  TEs.push_back(TE);
+  TEs.push_back(Load);
+  trySerializeTEs();
+}
+
+void InstTraceContext::recordStoreInst(InstId Id, void *Address) {
+  if (CurInterval.isWaitingForInterval(curInstId())) {
+    return;
+  }
+
+  std::uint64_t AddressU64 = reinterpret_cast<std::uint64_t>(Address);
+
+  TraceEvent Store;
+  TraceEvent::DynamicInst *Inst = Store.mutable_inst();
+  Inst->set_inst_id(Id);
+  Inst->mutable_memory()->set_address(AddressU64);
+
+  TEs.push_back(Store);
+  trySerializeTEs();
+}
+void InstTraceContext::recordCallStack() {
+  dumpCallStack();
+
+  TraceEvent PCallStack;
+  TraceEvent::CallStack *PStack = PCallStack.mutable_call_stack();
+  for (const CallFrame &F : CallStack) {
+    TraceEvent::CallStack::CallFrame *PF = PStack->add_frames();
+    PF->set_bb_id(F.CurBB);
+    PF->set_bb_exec_count(F.BBExecCount);
+  }
+  TEs.push_back(PCallStack);
   trySerializeTEs();
 }
 
@@ -873,15 +583,6 @@ void InstTraceContext::trySerializeTEs() {
 
 void InstTraceContext::serializeTEs() {
   assert(TEs.size() <= SerializeTESize);
-
-  // #ifdef ENABLE_DEBUG
-  //   std::cout << "Serialize Protobuf" << std::endl;
-  //   for (auto i = 0; i < TEs.size(); ++i) {
-  //     std::cout << "  [" << i << "] " << TEs[i].ShortDebugString() <<
-  //     std::endl;
-  //   }
-  // #endif
-
   CurInterval.SerializedCount += TEs.size();
   stream::write_buffered(CurInterval.OFS(), TEs, 0);
   assert(TEs.empty());
@@ -903,30 +604,35 @@ void InstTraceContext::dumpCallStack() const {
   }
 }
 
-} // namespace
+} // namespace trace
+} // namespace dragongem
 
 void incDynamicInstCount() {
-  TraceContext::getInstance()->incDynamicInstCount();
+  dragongem::trace::TraceContext::getInstance()->incDynamicInstCount();
 }
 
-CallId getCallSite(const InstId Id) {
-  return TraceContext::getInstance()->getCallSite(Id);
+void recordFunctionEntry() {
+  dragongem::trace::TraceContext::getInstance()->recordFunctionEntry();
 }
 
-void recordReturnFromCall(const CallId Id, const InstId NumRetiredInBB) {
-  TraceContext::getInstance()->recordReturnFromCall(Id, NumRetiredInBB);
+void recordReturnInst() {
+  dragongem::trace::TraceContext::getInstance()->recordReturnInst();
 }
 
-void recordBasicBlock(const BBId Id, const bool IsFuncEntry) {
-  TraceContext::getInstance()->recordBasicBlock(Id, IsFuncEntry);
+void recordBasicBlock(BBId Id) {
+  dragongem::trace::TraceContext::getInstance()->recordBasicBlock(Id);
 }
 
-void recordLoadInst(const InstId Id, void *const Address) {
-  TraceContext::getInstance()->recordLoadInst(Id, Address);
+void recordLandingPad(BBId FunctionId) {
+  dragongem::trace::TraceContext::getInstance()->recordLandingPad(FunctionId);
 }
 
-void recordStoreInst(const InstId Id, void *const Address) {
-  TraceContext::getInstance()->recordStoreInst(Id, Address);
+void recordLoadInst(InstId Id, void *Address) {
+  dragongem::trace::TraceContext::getInstance()->recordLoadInst(Id, Address);
+}
+
+void recordStoreInst(InstId Id, void *Address) {
+  dragongem::trace::TraceContext::getInstance()->recordStoreInst(Id, Address);
 }
 
 #ifdef ENABLE_DEBUG

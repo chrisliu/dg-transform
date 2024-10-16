@@ -3,10 +3,9 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Passes/PassPlugin.h"
-#include "llvm/Support/Compiler.h"
-#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/PassPlugin.h>
+#include <llvm/Support/Compiler.h>
 
 // TODO: Use a registry class.
 llvm::PassPluginLibraryInfo getInstrumentPassesPluginInfo() {
@@ -23,9 +22,6 @@ llvm::PassPluginLibraryInfo getInstrumentPassesPluginInfo() {
               } else if (Name == dragongem::llvm::trace::
                                      InstrumentInstTracePass::PassName) {
                 MPM.addPass(dragongem::llvm::trace::InstrumentInstTracePass());
-                // Run mem2reg for alloca insts inserted at call sites.
-                MPM.addPass(::llvm::createModuleToFunctionPassAdaptor(
-                    ::llvm::PromotePass()));
                 return true;
               }
               return false;
