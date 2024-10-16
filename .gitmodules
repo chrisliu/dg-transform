@@ -1,3 +1,0 @@
-[submodule "deps/stream"]
-	path = deps/stream
-	url = https://github.com/vgteam/stream
