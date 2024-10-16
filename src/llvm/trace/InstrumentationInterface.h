@@ -1,6 +1,7 @@
 #ifndef DRAGONGEM_LLVM_TRACE_INSTRUMENTATION_INTERFACE_H
 #define DRAGONGEM_LLVM_TRACE_INSTRUMENTATION_INTERFACE_H
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 
@@ -12,13 +13,17 @@ struct InstrumentationInterface {
   InstrumentationInterface(::llvm::Module &M);
 
   ::llvm::IntegerType *I64Ty;
+
+  ::llvm::IntegerType *BoolTy;
+  ::llvm::ConstantInt *TrueVal;
+  ::llvm::ConstantInt *FalseVal;
+
   ::llvm::FunctionCallee IncDynamicInstCountFunc;
 
-  ::llvm::FunctionCallee RecordFunctionEntryFunc;
-  ::llvm::FunctionCallee RecordReturnInstFunc;
+  ::llvm::FunctionCallee GetCallSiteFunc;
+  ::llvm::FunctionCallee RecordReturnFromCallFunc;
 
   ::llvm::FunctionCallee RecordBasicBlockFunc;
-  ::llvm::FunctionCallee RecordLandingPadFunc;
 
   ::llvm::FunctionCallee RecordLoadInstFunc;
   ::llvm::FunctionCallee RecordStoreInstFunc;

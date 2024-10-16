@@ -5,6 +5,8 @@ package dragongem.stats;
 message FunctionFrame {
   uint64 id = 1;
   string function = 2;
-  uint64 cycles = 3;
-  optional uint64 caller_id = 4;
+  uint64 num_insts = 3;
+  optional uint64 start = 4;
+  optional uint64 end = 5; // Inclusive.
+  optional uint64 caller_id = 6;
 }
