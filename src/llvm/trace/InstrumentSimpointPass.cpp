@@ -31,8 +31,15 @@ const std::string InstrumentSimpointPass::PassName =
 ::llvm::PreservedAnalyses
 InstrumentSimpointPass::run(::llvm::Module &M,
                             ::llvm::ModuleAnalysisManager &AM) {
+
+  assert(!UIDFile.empty() && "Must provide the LLVM UID file");
+
+  ::llvm::FunctionAnalysisManager &FAM =
+      AM.getResult<::llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  CanonicalId CID(M, FAM, UIDFile);
+  // CanonicalId CID(M);
+
   InstrumentationInterface II(M);
-  CanonicalId CID(M);
 
   for (::llvm::Function &F : M) {
     for (::llvm::BasicBlock &BB : F) {
@@ -45,13 +52,7 @@ InstrumentSimpointPass::run(::llvm::Module &M,
 
   LLVM_DEBUG(::llvm::dbgs() << UIDFile << '\n');
 
-  if (UIDFile.empty()) {
-    ::llvm::errs() << "Warning: UID file is not written\n";
-  } else {
-    CID.serialize(UIDFile);
-  }
-
-  // LLVM_DEBUG(M.dump());
+  CID.serialize(UIDFile);
 
   return ::llvm::PreservedAnalyses::none();
 }

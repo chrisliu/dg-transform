@@ -3,10 +3,61 @@ syntax = "proto3";
 package dragongem.stats;
 
 message FunctionFrame {
-  uint64 id = 1;
-  string function = 2;
+  uint64 canon_id = 1;
+  uint64 id = 2;
+  optional uint64 caller_id = 3; // Refers to id (not canon_id).
+
+  string function = 5;
+
+  uint64 num_insts = 10;
+
+  optional uint64 start = 20;
+  optional uint64 end = 21; // Inclusive.
+}
+
+// Naming connvention:
+// - id: refers to a region's dynamic id (unless canno if explicitly specified).
+// - uid: refers to the LLVM id corresponding to Metadata.proto.
+message Region {
+  // Note: All references of *_id refers to id, not canon_id.
+
+  message Function {
+    // string function = 1;
+    uint64 function_uid = 1;
+
+    optional uint64 caller_id = 5;
+  }
+
+  message Loop {
+    // string loop = 1;
+    uint64 loop_uid = 1;
+    uint64 num_iters = 2;
+
+    optional uint64 parent_loop_iter_id = 5;
+  }
+
+  message LoopIter {
+    uint64 loop_id = 1;
+    uint64 iteration = 2; // Which loop iteration.
+  }
+
+  uint64 canon_id = 1;
+  uint64 id = 2;
   uint64 num_insts = 3;
-  optional uint64 start = 4;
-  optional uint64 end = 5; // Inclusive.
-  optional uint64 caller_id = 6;
+
+  optional uint64 parent_id = 5;
+  uint64 function_id = 6;
+
+  oneof type_oneof {
+    Function function = 10;
+    Loop loop = 11;
+    LoopIter loop_iter = 12;
+  }
+
+  optional uint64 start = 20; // Cycle
+  optional uint64 end = 21;   // Cycle; Inclusive
+}
+
+message OracleDecision {
+  repeated uint64 canon_ids = 1; // Offload to accelerator.
 }

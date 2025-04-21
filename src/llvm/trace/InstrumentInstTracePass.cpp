@@ -61,8 +61,12 @@ InstrumentInstTracePass::run(::llvm::Module &M,
 
   assert(!UIDFile.empty() && "Must provide the LLVM UID file");
 
+  ::llvm::FunctionAnalysisManager &FAM =
+      AM.getResult<::llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  CanonicalId CID(M, FAM, UIDFile);
+  // CanonicalId CID(M);
+
   InstrumentationInterface II(M);
-  CanonicalId CID(M, UIDFile);
   XBBMap XBB;
 
   for (::llvm::Function &F : M) {

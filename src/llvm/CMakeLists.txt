@@ -20,15 +20,15 @@ endif()
 # TODO: debug why install shared library results in linking errors.
 # install(TARGETS InstrumentTracePass)
 
-include(CMakePrintHelpers)
-cmake_print_variables(dragongem_TRACE_INCLUDE_DIR)
-add_library(dragongemLLVM SHARED ExecutableBasicBlock.cpp CanonicalId.cpp)
-target_include_directories(dragongemLLVM PUBLIC ${dragongem_INCLUDE_DIRS})
-target_include_directories(dragongemLLVM PRIVATE ${dragongem_TRACE_INCLUDE_DIR})
-target_link_libraries(dragongemLLVM PUBLIC dragongemTrace)
-
-add_library(dragongemInstrumentationPasses SHARED
-            trace/InstrumentSimpointPass.cpp trace/InstrumentationInterface.cpp)
-target_link_libraries(dragongemInstrumentationPasses PUBLIC dragongemLLVM)
-target_link_libraries(dragongem dragongemInstrumentationPasses)
-install(TARGETS dragongemInstrumentationPasses dragongemLLVM)
+# include(CMakePrintHelpers)
+# cmake_print_variables(dragongem_TRACE_INCLUDE_DIR)
+# add_library(dragongemLLVM SHARED ExecutableBasicBlock.cpp CanonicalId.cpp)
+# target_include_directories(dragongemLLVM PUBLIC ${dragongem_INCLUDE_DIRS})
+# target_include_directories(dragongemLLVM PRIVATE ${dragongem_TRACE_INCLUDE_DIR})
+# target_link_libraries(dragongemLLVM PUBLIC dragongemTrace)
+#
+# add_library(dragongemInstrumentationPasses SHARED
+#             trace/InstrumentSimpointPass.cpp trace/InstrumentationInterface.cpp)
+# target_link_libraries(dragongemInstrumentationPasses PUBLIC dragongemLLVM)
+# target_link_libraries(dragongem dragongemInstrumentationPasses)
+# install(TARGETS dragongemInstrumentationPasses dragongemLLVM)

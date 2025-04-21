@@ -16,6 +16,9 @@ if(NOT EXISTS "${dg_LLVM_INSTALL_DIR}")
   message(FATAL_ERROR "Must define dg_LLVM_INSTALL_DIR")
 endif()
 
+set(CMAKE_CXX_FLAGS -fdiagnostics-color=always)
+set(CMAKE_C_FLAGS -fdiagnostics-color=always)
+
 include(GNUInstallDirs)
 
 find_package(LLVM REQUIRED CONFIG PATHS "${dg_LLVM_INSTALL_DIR}")

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package dragongem.proto;
+
+message CallCount {
+  uint32 num_leaf = 1;
+  uint32 num_direct_indrec = 2;
+  uint32 num_direct_self = 3;
+  uint32 num_direct_tu = 4;
+  uint32 num_direct_ext = 5;
+  uint32 num_indirect = 6;
+}
+
+message Function {
+  enum Type {
+    TYPE_UNDEFINED = 0;
+    TYPE_Leaf = 1;
+    TYPE_IndirectRecursiveDynamic = 2;
+    TYPE_IndirectRecursiveStatic = 3;
+    TYPE_DirectRecursiveDynamic = 4;
+    TYPE_DirectRecursiveStatic = 5;
+    TYPE_None = 6;
+  }
+
+  uint64 id = 1;
+  string name = 2;
+  Type type = 3;
+
+  CallCount call = 5;
+}
+
+message Loop {
+  enum Type {
+    TYPE_UNDEFINED = 0;
+    TYPE_InlineLocal = 1;
+    TYPE_InlineLeaf = 2;
+    TYPE_InlineDirectRecursive = 3;
+    TYPE_None = 4;
+  }
+
+  uint64 id = 1;
+  string name = 2;
+  Type type = 3;
+
+  uint64 function_id = 4;
+  optional uint64 parent_loop_id = 5;
+
+  CallCount call = 10;
+
+}
+
+message MetadataEntry {
+  oneof entry_oneof {
+    Function function = 1;
+    Loop loop = 2;
+  }
+}

@@ -5,19 +5,21 @@ add_subdirectory(trace)
 
 # Hacky may need to restructure project ;(
 add_library(dragongemLLVM SHARED llvm/ExecutableBasicBlock.cpp
-                                 llvm/CanonicalId.cpp)
+                                 llvm/CanonicalId.cpp llvm/Metadata.cpp)
 target_compile_options(dragongemLLVM PUBLIC -fno-rtti)
 target_include_directories(dragongemLLVM PUBLIC ${dragongem_INCLUDE_DIRS})
 target_include_directories(
-  dragongemLLVM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+  dragongemLLVM
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/trace/include>
+)
 target_include_directories(dragongemLLVM PRIVATE ${stream_INCLUDE_DIRS})
 target_link_libraries(dragongemLLVM PUBLIC dragongemTrace)
 
 add_library(
   dragongemInstrumentationPasses SHARED
   llvm/trace/InstrumentSimpointPass.cpp llvm/trace/InstrumentInstTracePass.cpp
-  llvm/trace/Registry.cpp llvm/trace/InstrumentationInterface.cpp
-  llvm/trace/CLOpts.cpp)
+  llvm/trace/MetadataPass.cpp llvm/trace/Registry.cpp
+  llvm/trace/InstrumentationInterface.cpp llvm/trace/CLOpts.cpp)
 target_compile_options(dragongemInstrumentationPasses PUBLIC -fno-rtti)
 target_link_libraries(dragongemInstrumentationPasses PUBLIC dragongemLLVM)
 target_link_libraries(dragongem dragongemInstrumentationPasses)
@@ -40,16 +42,13 @@ target_include_directories(
 install(TARGETS dragongemInstrumentationTools_shared)
 
 # add_library(dragongemInstrumentationTools_static STATIC
-#             llvm/trace/Instrumentation.cpp)
-# set_target_properties(
-#   dragongemInstrumentationTools_static
-#   PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME
-#                                           dragongemInstrumentationTools)
+# llvm/trace/Instrumentation.cpp) set_target_properties(
+# dragongemInstrumentationTools_static PROPERTIES POSITION_INDEPENDENT_CODE ON
+# OUTPUT_NAME dragongemInstrumentationTools)
 # target_link_libraries(dragongemInstrumentationTools_static
-#                       dragongemTrace_static)
-# target_include_directories(
-#   dragongemInstrumentationTools_static
-#   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
+# dragongemTrace_static) target_include_directories(
+# dragongemInstrumentationTools_static PRIVATE
+# $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
 # install(TARGETS dragongemInstrumentationTools_static)
 
 install(TARGETS dragongem)

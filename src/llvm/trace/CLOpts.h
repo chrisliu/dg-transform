@@ -7,6 +7,7 @@ namespace llvm {
 namespace trace {
 
 extern std::string UIDFile;
+extern std::string MetadataFile;
 
 } // namespace trace
 } // namespace llvm
