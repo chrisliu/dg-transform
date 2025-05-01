@@ -11,7 +11,6 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <iostream>
 #include <optional>
 #include <ostream>
@@ -21,8 +20,8 @@
 #include <vector>
 
 #include "stream.hpp"
-#include "trace/BBInterval.pb.h"
-#include "trace/InstTrace.pb.h"
+#include "dragongem/trace/BBInterval.pb.h"
+#include "dragongem/trace/InstTrace.pb.h"
 
 #define ENABLE_ASSERT
 // #define ENABLE_DEBUG

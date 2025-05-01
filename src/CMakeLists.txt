@@ -33,7 +33,10 @@ set_target_properties(
   dragongemInstrumentationTools_shared
   PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME
                                           dragongemInstrumentationTools)
-target_link_libraries(dragongemInstrumentationTools_shared dragongemTrace)
+target_link_libraries(dragongemInstrumentationTools_shared 
+  PRIVATE dragongemTrace
+  PUBLIC dragongemLLVM
+)
 target_include_directories(dragongemInstrumentationTools_shared
                            PUBLIC ${dragongem_INCLUDE_DIRS})
 target_include_directories(

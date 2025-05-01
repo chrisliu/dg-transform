@@ -8,20 +8,12 @@ if(POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
 endif()
 
-set(dg_LLVM_INSTALL_DIR
-    ""
-    CACHE PATH "LLVM installation directory")
-
-if(NOT EXISTS "${dg_LLVM_INSTALL_DIR}")
-  message(FATAL_ERROR "Must define dg_LLVM_INSTALL_DIR")
-endif()
-
 set(CMAKE_CXX_FLAGS -fdiagnostics-color=always)
 set(CMAKE_C_FLAGS -fdiagnostics-color=always)
 
 include(GNUInstallDirs)
 
-find_package(LLVM REQUIRED CONFIG PATHS "${dg_LLVM_INSTALL_DIR}")
+find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})
@@ -29,7 +21,7 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 set(protobuf_MODULE_COMPATIBLE
     ON
     CACHE BOOL "") # Enable flag for CMake FindPackage
-find_package(Protobuf REQUIRED)
+find_package(Protobuf REQUIRED CONFIG)
 include_directories(${Protobuf_INCLUDE_DIRS})
 
 # Include stream directory.
