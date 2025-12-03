@@ -1,6 +1,7 @@
 #include "InstrumentInstTracePass.h"
 #include "InstrumentSimpointPass.h"
 #include "MetadataPass.h"
+#include "TracePass.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/PassManager.h"
@@ -31,6 +32,9 @@ llvm::PassPluginLibraryInfo getInstrumentPassesPluginInfo() {
               } else if (Name ==
                          dragongem::llvm::trace::MetadataPass::PassName) {
                 MPM.addPass(dragongem::llvm::trace::MetadataPass());
+                return true;
+              } else if (Name == dragongem::llvm::trace::TracePass::PassName) {
+                MPM.addPass(dragongem::llvm::trace::TracePass());
                 return true;
               }
               return false;

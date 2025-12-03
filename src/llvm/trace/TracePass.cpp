@@ -1,26 +1,28 @@
-#include <llvm/ADT/StringRef.h>
-#include <llvm/Pass.h>
+#include "TracePass.h"
+#include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/Support/Debug.h>
 
-#define DEBUG_TYPE "dg-instrument-trace-pass"
+#define DEBUG_TYPE "dg-trace"
 
 namespace dragongem {
+namespace llvm {
+namespace trace {
 
-class InstrumentPass : public llvm::FunctionPass {
-public:
-  static char ID;
+const std::string TracePass::PassName = "dg-trace";
 
-  bool doInitialization(llvm::Module &M) override;
-  bool runOnFunction(llvm::Function &F) override;
-};
+::llvm::PreservedAnalyses TracePass::run(::llvm::Module &M,
+                                         ::llvm::ModuleAnalysisManager &AM) {
+  // TODO: Implement trace functionality
+  // This is a stub implementation for the generic trace pass
+  LLVM_DEBUG(::llvm::dbgs() << "Running TracePass on module: " << M.getName()
+                            << "\n");
 
-bool InstrumentPass::doInitialization(llvm::Module &M) { return true; }
+  return ::llvm::PreservedAnalyses::all();
+}
 
-bool runOnFunction(llvm::Function &F) { return true; }
-
-char InstrumentPass::ID = 0;
-static llvm::RegisterPass<InstrumentPass> X("dg-instrument-trace-pass",
-                                       "Instrumented trace pass", false, false);
-
+} // namespace trace
+} // namespace llvm
 } // namespace dragongem
 
 #undef DEBUG_TYPE

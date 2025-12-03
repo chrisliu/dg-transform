@@ -1,66 +1,36 @@
+# ============================================================================
+# Umbrella Target
+# ============================================================================
+
+# Umbrella library that links all dragonGem components
+# Note: Built from dummy.cpp for historical reasons
 add_library(dragongem SHARED dummy.cpp)
 
+# ============================================================================
+# Subdirectories
+# ============================================================================
+
+# Protobuf message definitions
 add_subdirectory(trace)
-# add_subdirectory(llvm)
 
-# Hacky may need to restructure project ;(
-add_library(
-  dragongemLLVM SHARED llvm/ExecutableBasicBlock.cpp
-                       llvm/CanonicalId.cpp 
-                       llvm/Metadata.cpp
-                       llvm/analysis/MemoryAlias.cpp
+# LLVM-based libraries (core utilities, analysis, instrumentation)
+add_subdirectory(llvm)
+
+# ============================================================================
+# Umbrella Target Dependencies
+# ============================================================================
+
+# Link umbrella target to all major components
+# This preserves backward compatibility for projects that link against 'dragongem'
+target_link_libraries(dragongem
+  PUBLIC
+    dragongemLLVM
+    dragongemAnalysis
+    dragongemInstrumentationPasses
 )
-target_compile_options(dragongemLLVM PUBLIC -fno-rtti)
-target_include_directories(dragongemLLVM PUBLIC ${dragongem_INCLUDE_DIRS})
-target_include_directories(
-  dragongemLLVM
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/trace/include>
-)
-target_include_directories(dragongemLLVM PRIVATE ${stream_INCLUDE_DIRS})
-target_link_libraries(dragongemLLVM PUBLIC dragongemTrace)
 
-add_library(
-  dragongemInstrumentationPasses SHARED
-  llvm/trace/InstrumentSimpointPass.cpp llvm/trace/InstrumentInstTracePass.cpp
-  llvm/trace/MetadataPass.cpp llvm/trace/Registry.cpp
-  llvm/trace/InstrumentationInterface.cpp llvm/trace/CLOpts.cpp)
-target_compile_options(dragongemInstrumentationPasses PUBLIC -fno-rtti)
-target_link_libraries(dragongemInstrumentationPasses PUBLIC dragongemLLVM)
-target_link_libraries(dragongem dragongemInstrumentationPasses)
-install(TARGETS dragongemInstrumentationPasses dragongemLLVM)
-
-# Note: Insrumentation tools can only be built after the trace library has been
-# built.
-add_library(dragongemInstrumentationTools_shared SHARED
-            llvm/trace/Instrumentation.cpp)
-set_target_properties(
-  dragongemInstrumentationTools_shared
-  PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME
-                                          dragongemInstrumentationTools)
-target_link_libraries(dragongemInstrumentationTools_shared 
-  PRIVATE dragongemTrace
-  PUBLIC dragongemLLVM
-)
-target_include_directories(dragongemInstrumentationTools_shared
-                           PUBLIC ${dragongem_INCLUDE_DIRS})
-target_include_directories(
-  dragongemInstrumentationTools_shared
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
-install(TARGETS dragongemInstrumentationTools_shared)
-
-# add_library(dragongemInstrumentationTools_static STATIC
-# llvm/trace/Instrumentation.cpp) set_target_properties(
-# dragongemInstrumentationTools_static PROPERTIES POSITION_INDEPENDENT_CODE ON
-# OUTPUT_NAME dragongemInstrumentationTools)
-# target_link_libraries(dragongemInstrumentationTools_static
-# dragongemTrace_static) target_include_directories(
-# dragongemInstrumentationTools_static PRIVATE
-# $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> ${stream_INCLUDE_DIRS})
-# install(TARGETS dragongemInstrumentationTools_static)
+# ============================================================================
+# Installation
+# ============================================================================
 
 install(TARGETS dragongem)
-install(
-  DIRECTORY ${dragongem_INCLUDE_DIRS}/dragongem/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dragongem
-  FILES_MATCHING
-  PATTERN "*.h*")
