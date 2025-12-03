@@ -7,7 +7,6 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
@@ -24,6 +23,9 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <llvm/Analysis/AliasAnalysis.h>
+#include <llvm/Analysis/AliasSetTracker.h>
+#include <llvm/Analysis/MemorySSA.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -91,6 +93,25 @@ bool MetadataPass::isTrackedCall(const ::llvm::Instruction &I) {
 
   printStats(FMeta, LMeta);
   serialize(M, AM, FMeta, LMeta);
+
+  ::llvm::FunctionAnalysisManager &FAM =
+      AM.getResult<::llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  for (auto &F : M) {
+    if (F.isDeclaration()) continue;
+
+    ::llvm::MemorySSA &MSSA =
+        FAM.getResult<::llvm::MemorySSAAnalysis>(F).getMSSA();
+    ::llvm::AliasAnalysis &AA = MSSA.getAA();
+    ::llvm::BatchAAResults BatchAA(AA);
+    ::llvm::AliasSetTracker Tracker(BatchAA);
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        Tracker.add(&I);
+      }
+    }
+    ::llvm::dbgs() << "Alias sets for" << F.getName() << ":\n";
+    Tracker.print(::llvm::dbgs());
+  }
 
   return ::llvm::PreservedAnalyses::none();
 }

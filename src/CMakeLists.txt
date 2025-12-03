@@ -4,8 +4,12 @@ add_subdirectory(trace)
 # add_subdirectory(llvm)
 
 # Hacky may need to restructure project ;(
-add_library(dragongemLLVM SHARED llvm/ExecutableBasicBlock.cpp
-                                 llvm/CanonicalId.cpp llvm/Metadata.cpp)
+add_library(
+  dragongemLLVM SHARED llvm/ExecutableBasicBlock.cpp
+                       llvm/CanonicalId.cpp 
+                       llvm/Metadata.cpp
+                       llvm/analysis/MemoryAlias.cpp
+)
 target_compile_options(dragongemLLVM PUBLIC -fno-rtti)
 target_include_directories(dragongemLLVM PUBLIC ${dragongem_INCLUDE_DIRS})
 target_include_directories(
